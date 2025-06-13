@@ -27,7 +27,6 @@ processing_groups:
       - max_z_post
       - max_z_pre
 
-    hit_table_layout: reboost.shape.group.group_by_time(STEPS,window = 10)
 
     operations:
       t0: ak.fill_none(ak.firsts(HITS.time, axis=-1), np.nan)
@@ -63,6 +62,7 @@ processing_groups:
     detector_mapping:
       - output: vtx
 
+    lh5_group: null
     outputs:
       - xloc
       - yloc
