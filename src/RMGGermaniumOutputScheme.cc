@@ -109,6 +109,9 @@ void RMGGermaniumOutputScheme::AssignOutputNames(G4AnalysisManager* ana_man) {
       CreateNtupleFOrDColumn(ana_man, id, "zloc_post_in_m", fStoreSinglePrecisionPosition);
       CreateNtupleFOrDColumn(ana_man, id, "dist_to_surf_post_in_m", fStoreSinglePrecisionPosition);
     }
+    if (fDiscardPhotonsIfNoGermaniumEdep){
+        ana_man->CreateNtupleIColumn(id, "is_photons_simulated");
+     }
     ana_man->FinishNtuple(id);
   }
 }
@@ -134,6 +137,52 @@ RMGDetectorHitsCollection* RMGGermaniumOutputScheme::GetHitColl(const G4Event* e
   return hit_coll;
 }
 
+
+bool RMGGermaniumOutputScheme::DiscardPhotons(const G4Event* event) {
+
+  // exit fast if no threshold is configured.
+  fDiscardPhotons = false;
+  if ((fPhotonEdepCutLow < 0 && fPhotonEdepCutHigh < 0)) return false;
+
+  auto hit_coll = GetHitColl(event);
+  if (!hit_coll) return false;
+
+  // check defined energy threshold.
+  std::unordered_map<int, double> edep_per_detector;
+
+  for (auto hit : *hit_coll->GetVector()) {
+      if (!hit) continue;
+
+      // Only process if the detector is in the allowed set, or if no restrictions are set
+      if (fEdepCutDetectors.empty() ||
+          fEdepCutDetectors.find(hit->detector_uid) != fEdepCutDetectors.end()) {
+          
+          edep_per_detector[hit->detector_uid] += hit->energy_deposition;
+      }
+  }
+
+  bool should_discard = true;
+
+  for (const auto& [det_uid, edep] : edep_per_detector) {
+    
+    bool energy_out_range = (((fPhotonEdepCutLow >= 0 && edep <= fPhotonEdepCutLow) ||
+        (fPhotonEdepCutHigh > 0 && edep > fPhotonEdepCutHigh))) ;
+
+    if (not energy_out_range) should_discard = false;
+      
+      RMGLog::Out(
+        RMGLog::debug,
+        "Keeping event - energy threshold has  been met",
+        det_uid,
+        fPhotonEdepCutLow,
+        fPhotonEdepCutHigh
+    );
+  } 
+  fDiscardPhotons = should_discard;
+
+  return should_discard;
+
+}
 bool RMGGermaniumOutputScheme::ShouldDiscardEvent(const G4Event* event) {
 
   // exit fast if no threshold is configured.
@@ -143,29 +192,38 @@ bool RMGGermaniumOutputScheme::ShouldDiscardEvent(const G4Event* event) {
   if (!hit_coll) return false;
 
   // check defined energy threshold.
-  double event_edep = 0.;
+  std::unordered_map<int, double> edep_per_detector;
 
   for (auto hit : *hit_coll->GetVector()) {
-    if (!hit) continue;
+      if (!hit) continue;
 
-    if (fEdepCutDetectors.empty() or
-        (fEdepCutDetectors.find(hit->detector_uid) != fEdepCutDetectors.end()))
-      event_edep += hit->energy_deposition;
+      // Only process if the detector is in the allowed set, or if no restrictions are set
+      if (fEdepCutDetectors.empty() ||
+          fEdepCutDetectors.find(hit->detector_uid) != fEdepCutDetectors.end()) {
+          
+          edep_per_detector[hit->detector_uid] += hit->energy_deposition;
+      }
   }
 
-  if ((fEdepCutLow >= 0 && event_edep <= fEdepCutLow) ||
-      (fEdepCutHigh > 0 && event_edep > fEdepCutHigh)) {
-    RMGLog::Out(
+  bool should_discard = true;
+
+  for (const auto& [det_uid, edep] : edep_per_detector) {
+    
+    bool energy_out_range = (((fEdepCutLow >= 0 && edep <= fEdepCutLow) ||
+        (fEdepCutHigh > 0 && edep > fEdepCutHigh))) ;
+
+    if (not energy_out_range) should_discard = false;
+      
+      RMGLog::Out(
         RMGLog::debug,
-        "Discarding event - energy threshold has not been met",
-        event_edep,
+        "Keeping event - energy threshold has  been met",
+        det_uid,
         fEdepCutLow,
         fEdepCutHigh
     );
-    return true;
   }
-
-  return false;
+      
+  return should_discard;
 }
 
 
@@ -305,6 +363,13 @@ void RMGGermaniumOutputScheme::StoreEvent(const G4Event* event) {
             fStoreSinglePrecisionPosition
         );
         FillNtupleFOrDColumn(ana_man, ntupleid, col_id++, distance / u::m, fStoreSinglePrecisionPosition);
+
+
+      }
+      if (fDiscardPhotonsIfNoGermaniumEdep)
+      {
+        ana_man->FillNtupleIColumn(ntupleid, col_id++, fDiscardPhotons);
+
       }
 
       // NOTE: must be called here for hit-oriented output
@@ -336,7 +401,7 @@ std::optional<bool> RMGGermaniumOutputScheme::StackingActionNewStage(const int s
 
   const auto event = G4EventManager::GetEventManager()->GetConstCurrentEvent();
   // discard all waiting events, if there was no energy deposition in Germanium.
-  return ShouldDiscardEvent(event) ? std::make_optional(false) : std::nullopt;
+  return DiscardPhotons(event) ? std::make_optional(false) : std::nullopt;
 }
 
 void RMGGermaniumOutputScheme::SetPositionModeString(std::string mode) {
@@ -366,6 +431,20 @@ void RMGGermaniumOutputScheme::DefineCommands() {
       .SetGuidance("Set an upper energy cut that has to be met for this event to be stored.")
       .SetParameterName("threshold", false)
       .SetStates(G4State_Idle);
+
+
+  fMessengers.back()
+      ->DeclareMethodWithUnit("PhotonEdepCutLow", "keV", &RMGGermaniumOutputScheme::SetPhotonEdepCutLow)
+      .SetGuidance("Set an upper energy cut that has to be met for photons to be simulated")
+      .SetParameterName("threshold", false)
+      .SetStates(G4State_Idle);
+
+  fMessengers.back()
+      ->DeclareMethodWithUnit("PhotonEdepCutHigh", "keV", &RMGGermaniumOutputScheme::SetPhotonEdepCutHigh)
+      .SetGuidance("Set an upper energy cut that has to be met for photons to be simulated")
+      .SetParameterName("threshold", false)
+      .SetStates(G4State_Idle);
+
 
   fMessengers.back()
       ->DeclareMethod("AddDetectorForEdepThreshold", &RMGGermaniumOutputScheme::AddEdepCutDetector)

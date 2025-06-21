@@ -65,6 +65,26 @@ class RMGScintillatorOutputScheme : public RMGVOutputScheme {
      */
     bool ShouldDiscardEvent(const G4Event*) override;
 
+
+
+    /** @brief Decide whether to simulate photons in the event.
+     *  @details @c true if the photons should not be simulated.
+     */
+    bool DiscardPhotons(const G4Event* event);
+
+
+    /** @brief Wraps @c G4UserStackingAction::StackingActionNewStage
+     *  @details discard all waiting events, if @c ShouldDiscardEvent() is true.
+     */
+    std::optional<bool> StackingActionNewStage(int) override;
+
+    /** @brief Wraps @c G4UserStackingAction::StackingActionClassify
+     *  @details This is used to classify all optical photon tracks as @c fWaiting if
+     * @c fBiasing is true.
+     */
+    std::optional<G4ClassificationOfNewTrack> StackingActionClassify(const G4Track*, int) override;
+
+
     /** @brief Set a lower cut on the energy deposited in the event to store it. */
     void SetEdepCutLow(double threshold) { fEdepCutLow = threshold; }
 
@@ -112,6 +132,10 @@ class RMGScintillatorOutputScheme : public RMGVOutputScheme {
 
     bool fPreClusterHits = true;
     bool fDiscardZeroEnergyHits = true;
+
+    bool fUseBiasing = false;
+    bool fBiasingFactor = 100;
+    double fBiasRand = 0;
 
     /** @brief Parameters for pre-clustering. */
     RMGOutputTools::ClusterPars fPreClusterPars{};

@@ -67,6 +67,11 @@ class RMGGermaniumOutputScheme : public RMGVOutputScheme {
      */
     bool ShouldDiscardEvent(const G4Event* event) override;
 
+     /** @brief Decide whether to simulate photons for the event
+     *  @details @c true if the photons should not be simulated.
+     */
+    bool DiscardPhotons(const G4Event* event);
+
     /** @brief Wraps @c G4UserStackingAction::StackingActionNewStage
      *  @details discard all waiting events, if @c ShouldDiscardEvent() is true.
      */
@@ -83,6 +88,13 @@ class RMGGermaniumOutputScheme : public RMGVOutputScheme {
 
     /** @brief Set a lower cut on the energy deposited in the event to store it. */
     void SetEdepCutHigh(double threshold) { fEdepCutHigh = threshold; }
+
+
+    /** @brief Set a lower cut on the energy deposited in the event to store simulate photons. */
+    void SetPhotonEdepCutLow(double threshold) { fPhotonEdepCutLow = threshold; }
+
+    /** @brief Set a lower cut on the energy deposited in the event to simulated photons */
+    void SetPhotonEdepCutHigh(double threshold) { fPhotonEdepCutHigh = threshold; }
 
     /** @brief Add a detector uid to the list of detectors to apply the energy cut for. */
     void AddEdepCutDetector(int det_uid) { fEdepCutDetectors.insert(det_uid); }
@@ -125,10 +137,15 @@ class RMGGermaniumOutputScheme : public RMGVOutputScheme {
 
     double fEdepCutLow = -1;
     double fEdepCutHigh = -1;
+
+    double fPhotonEdepCutLow = -1;
+    double fPhotonEdepCutHigh = -1;
+
     std::set<int> fEdepCutDetectors;
 
     bool fDiscardPhotonsIfNoGermaniumEdep = false;
     bool fDiscardZeroEnergyHits = true;
+    bool fDiscardPhotons  = false;
 
     bool fStoreSinglePrecisionEnergy = false;
     bool fStoreSinglePrecisionPosition = false;
