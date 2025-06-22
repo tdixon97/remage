@@ -18,8 +18,9 @@
 #include <optional>
 
 #include "G4EventManager.hh"
-#include "G4OpticalPhoton.hh"
 #include "G4Track.hh"
+#include "G4OpticalPhoton.hh"
+
 
 #include "RMGLog.hh"
 #include "RMGManager.hh"
@@ -33,7 +34,7 @@ G4ClassificationOfNewTrack RMGStackingAction::ClassifyNewTrack(const G4Track* aT
 
   std::optional<G4ClassificationOfNewTrack> new_status = std::nullopt;
   for (auto& el : fRunAction->GetAllOutputDataFields()) {
-
+    
     auto request_status = el->StackingActionClassify(aTrack, fStage);
     if (!request_status.has_value()) continue; // this output scheme does not care.
 
@@ -45,19 +46,25 @@ G4ClassificationOfNewTrack RMGStackingAction::ClassifyNewTrack(const G4Track* aT
   }
 
 
-  if (new_status.has_value()) { return new_status.value(); }
 
+  if (new_status.has_value()) { 
+   return new_status.value();}
+   
 
-  return fUrgent;
+    return fUrgent;
 }
 
 void RMGStackingAction::NewStage() {
   // we can have only one result from all output schemes; if we have conflicting requests, we cannot continue.
   std::optional<bool> should_do_stage = std::nullopt;
+  std::cout<<"starting classification"<<std::endl;
   for (auto& el : fRunAction->GetAllOutputDataFields()) {
 
-    if (!request_stage.has_value()) continue; // this output scheme does not care.
+    auto request_stage = el->StackingActionNewStage(fStage);
 
+
+    if (!request_stage.has_value()) continue; // this output scheme does not care.
+    
     if (!should_do_stage.has_value() || should_do_stage.value() == request_stage.value()) {
       should_do_stage = request_stage;
     } else {
