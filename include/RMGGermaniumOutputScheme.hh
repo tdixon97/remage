@@ -67,7 +67,7 @@ class RMGGermaniumOutputScheme : public RMGVOutputScheme {
      */
     bool ShouldDiscardEvent(const G4Event* event) override;
 
-     /** @brief Decide whether to simulate photons for the event
+    /** @brief Decide whether to simulate photons for the event
      *  @details @c true if the photons should not be simulated.
      */
     bool DiscardPhotons(const G4Event* event);
@@ -145,7 +145,7 @@ class RMGGermaniumOutputScheme : public RMGVOutputScheme {
 
     bool fDiscardPhotonsIfNoGermaniumEdep = false;
     bool fDiscardZeroEnergyHits = true;
-    bool fDiscardPhotons  = false;
+    bool fDiscardPhotons = false;
 
     bool fStoreSinglePrecisionEnergy = false;
     bool fStoreSinglePrecisionPosition = false;

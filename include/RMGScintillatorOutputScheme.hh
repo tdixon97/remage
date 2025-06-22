@@ -66,7 +66,6 @@ class RMGScintillatorOutputScheme : public RMGVOutputScheme {
     bool ShouldDiscardEvent(const G4Event*) override;
 
 
-
     /** @brief Decide whether to simulate photons in the event.
      *  @details @c true if the photons should not be simulated.
      */
@@ -134,7 +133,7 @@ class RMGScintillatorOutputScheme : public RMGVOutputScheme {
     bool fDiscardZeroEnergyHits = true;
 
     bool fUseBiasing = false;
-    bool fBiasingFactor = 100;
+    double fBiasingFactor = 100;
     double fBiasRand = 0;
 
     /** @brief Parameters for pre-clustering. */

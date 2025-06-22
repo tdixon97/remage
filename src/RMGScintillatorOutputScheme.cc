@@ -15,9 +15,9 @@
 
 #include "RMGScintillatorOutputScheme.hh"
 
+#include <cmath>
 #include <memory>
 #include <set>
-#include <cmath> 
 
 #include "G4AnalysisManager.hh"
 #include "G4Event.hh"
@@ -108,12 +108,11 @@ void RMGScintillatorOutputScheme::AssignOutputNames(G4AnalysisManager* ana_man) 
       CreateNtupleFOrDColumn(ana_man, id, "v_pre_in_m\\ns", fStoreSinglePrecisionPosition);
       CreateNtupleFOrDColumn(ana_man, id, "v_post_in_m\\ns", fStoreSinglePrecisionPosition);
     }
-    if (fUseBiasing) 
-    {
+    if (fUseBiasing) {
       CreateNtupleFOrDColumn(ana_man, id, "weight", fStoreSinglePrecisionEnergy);
       CreateNtupleFOrDColumn(ana_man, id, "bias_rand", fStoreSinglePrecisionEnergy);
     }
-    
+
     ana_man->FinishNtuple(id);
   }
 }
@@ -142,23 +141,21 @@ RMGDetectorHitsCollection* RMGScintillatorOutputScheme::GetHitColl(const G4Event
 bool RMGScintillatorOutputScheme::DiscardPhotons(const G4Event* event) {
 
   auto hit_coll = GetHitColl(event);
-  if (!hit_coll) return false;
+  if (!hit_coll) return true;
 
   // check defined energy threshold.
   double event_edep = 0.;
 
   for (auto hit : *hit_coll->GetVector()) {
     if (!hit) continue;
-    if (fEdepCutDetectors.find(hit->detector_uid) != fEdepCutDetectors.end())
-      event_edep += hit->energy_deposition;
+    event_edep += hit->energy_deposition;
   }
 
- if(fUseBiasing){ 
-
-    fBiasRand = rand();
-    double bias_factor = std::exp(-event_edep/fBiasingFactor);
-
-    if (fBiasRand > bias_factor) return true;
+  if (fUseBiasing) {
+    event_edep = event_edep / u::keV;
+    fBiasRand = G4UniformRand();
+    double bias_factor = std::exp(-event_edep / fBiasingFactor);
+    if (fBiasRand < bias_factor) return true;
   }
 
   return false;
@@ -181,9 +178,9 @@ bool RMGScintillatorOutputScheme::ShouldDiscardEvent(const G4Event* event) {
   }
 
   bool energy_out_range = (fEdepCutLow > 0 && event_edep < fEdepCutLow) ||
-        (fEdepCutHigh > 0 && event_edep > fEdepCutHigh) ; 
-    
-  if (energy_out_range){
+                          (fEdepCutHigh > 0 && event_edep > fEdepCutHigh);
+
+  if (energy_out_range) {
     RMGLog::Out(
         RMGLog::debug,
         "Discarding event - energy threshold has not been met",
@@ -354,21 +351,15 @@ void RMGScintillatorOutputScheme::StoreEvent(const G4Event* event) {
         );
       }
       if (fUseBiasing) {
-        
-         FillNtupleFOrDColumn(
+
+        FillNtupleFOrDColumn(
             ana_man,
             ntupleid,
             col_id++,
-            1/(std::exp(-event_edep/fBiasingFactor)),
+            std::exp((event_edep / u::keV) / fBiasingFactor),
             fStoreSinglePrecisionEnergy
         );
-        FillNtupleFOrDColumn(
-                    ana_man,
-                    ntupleid,
-                    col_id++,
-                    fBiasRand,
-                    fStoreSinglePrecisionEnergy
-                );
+        FillNtupleFOrDColumn(ana_man, ntupleid, col_id++, fBiasRand, fStoreSinglePrecisionEnergy);
       }
       // NOTE: must be called here for hit-oriented output
       ana_man->AddNtupleRow(ntupleid);
@@ -382,25 +373,28 @@ std::optional<G4ClassificationOfNewTrack> RMGScintillatorOutputScheme::StackingA
     int stage
 ) {
   // we are only interested in stacking optical photons into stage 1 after stage 0 finished.
-  if (stage != 0) return std::nullopt;
+  // if (stage != 0) return std::nullopt;
 
+  RMGLog::Out(RMGLog::debug, "stage ", stage);
   // defer tracking of optical photons.
-  if (fUseBiasing &&
-      aTrack->GetDefinition() == G4OpticalPhoton::OpticalPhotonDefinition())
+  if (fUseBiasing && aTrack->GetDefinition() == G4OpticalPhoton::OpticalPhotonDefinition())
     return fWaiting;
   return std::nullopt;
 }
 
 std::optional<bool> RMGScintillatorOutputScheme::StackingActionNewStage(const int stage) {
   // we are only interested in stacking optical photons into stage 1 after stage 0 finished.
-  if (stage != 0) return std::nullopt;
+  // if (stage != 0) return std::nullopt;
   // if we do not want to discard any photons ourselves, let other output schemes decide (i.e. not
   // force `true` on them).
   if (!fUseBiasing) return std::nullopt;
+  RMGLog::Out(RMGLog::debug, "stage ", stage);
 
   const auto event = G4EventManager::GetEventManager()->GetConstCurrentEvent();
   // discard all waiting events, if there was no energy deposition in Sctintillator.
-  return DiscardPhotons(event) ? std::make_optional(false) : std::nullopt;
+  auto disc = DiscardPhotons(event);
+  // return std::nullopt;
+  return disc ? std::make_optional(false) : std::nullopt;
 }
 
 void RMGScintillatorOutputScheme::SetPositionModeString(std::string mode) {
@@ -444,13 +438,14 @@ void RMGScintillatorOutputScheme::DefineCommands() {
       .SetParameterName("boolean", true)
       .SetDefaultValue("true")
       .SetStates(G4State_Idle);
-  
+
   fMessengers.back()
       ->DeclareProperty("UseEnergyBiasing", fUseBiasing)
       .SetGuidance("Use biasing to prefentially simulate low scintillator energy events.")
       .SetParameterName("boolean", true)
       .SetDefaultValue("true")
       .SetStates(G4State_Idle);
+
   fMessengers.back()
       ->DeclareProperty("BiasingFactor", fBiasingFactor)
       .SetGuidance("Factor of the exponential in the biasing function.")
