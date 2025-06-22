@@ -57,7 +57,6 @@ G4ClassificationOfNewTrack RMGStackingAction::ClassifyNewTrack(const G4Track* aT
 void RMGStackingAction::NewStage() {
   // we can have only one result from all output schemes; if we have conflicting requests, we cannot continue.
   std::optional<bool> should_do_stage = std::nullopt;
-  std::cout<<"starting classification"<<std::endl;
   for (auto& el : fRunAction->GetAllOutputDataFields()) {
 
     auto request_stage = el->StackingActionNewStage(fStage);
